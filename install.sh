@@ -46,16 +46,16 @@ mkdir -p "$BUN_DIR/lib"
 mkdir -p "$BUN_DIR/tmp"
 mkdir -p "$LOCAL_BIN"
 
+# ── Fetch latest version ──────────────────────────────────────────────────────
+echo "[*] Fetching latest patched version..."
+latest_version=$(curl -fsSL "$RAW_BASE/cli/cli-version.txt" | tr -d '\r\n[:space:]')
+echo "[+] Latest patched version is: $latest_version"
+
 # ── Download bun-termux wrapper & shim ────────────────────────────────────────
 echo "[*] Downloading bun-termux wrapper & shim..."
 curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-termux-aarch64" -o "$BUN_DIR/bin/bun"
 curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-shim-aarch64.so" -o "$BUN_DIR/lib/bun-shim.so"
 chmod +x "$BUN_DIR/bin/bun"
-
-# ── Fetch latest version ──────────────────────────────────────────────────────
-echo "[*] Fetching latest patched version..."
-latest_version=$(curl -fsSL "$RAW_BASE/cli/cli-version.txt" | tr -d '\r\n[:space:]')
-echo "[+] Latest patched version is: $latest_version"
 
 # ── Download Amp binary ───────────────────────────────────────────────────────
 temp_gz=$(mktemp "$BIN_DIR/tmp.XXXXXX.gz")
