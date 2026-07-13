@@ -108,27 +108,6 @@ for rc in "$PREFIX/glibc/etc/resolv.conf" "$PREFIX/etc/resolv.conf"; do
   fi
 done
 
-# ── Write repatch script ──────────────────────────────────────────────────────
-echo "[*] Writing local repatch script to $LOCAL_BIN/amp-repatch..."
-curl -fsSL "$RAW_BASE/replace_runtime.py" -o "$BIN_DIR/replace_runtime.py"
-chmod +x "$BIN_DIR/replace_runtime.py"
-
-cat << EOF > "$LOCAL_BIN/amp-repatch"
-#!/data/data/com.termux/files/usr/bin/bash
-set -e
-echo "[*] Repatching Amp CLI..."
-python3 "$BIN_DIR/replace_runtime.py" "$BIN_DIR/amp" --wrapper "$BUN_DIR/bin/bun"
-rm -f "$LOCAL_BIN/amp"
-cat << 'INNER_EOF' > "$LOCAL_BIN/amp"
-#!/data/data/com.termux/files/usr/bin/bash
-export BUN_INSTALL="\\\$HOME/.bun"
-export AMP_STORAGE_BASE="$RAW_BASE"
-exec "$BIN_DIR/amp" "\\\$@"
-INNER_EOF
-chmod +x "$LOCAL_BIN/amp"
-echo "[+] Amp CLI repatched successfully!"
-EOF
-chmod +x "$LOCAL_BIN/amp-repatch"
 
 echo "========================================="
 echo "[+] Success! Amp CLI has been installed natively."
