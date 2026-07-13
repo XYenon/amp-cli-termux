@@ -32,6 +32,25 @@ SHT_NOBITS = 8
 
 U64_SIZE = struct.calcsize('<Q')  # sizeof(uint64_t)
 
+# CompiledModuleGraphFile layout (src/standalone_graph/StandaloneModuleGraph.zig)
+# 6 StringPointers (u32 offset + u32 len each) = 48 bytes
+# + 4 x u8 enum fields (loader, encoding, module_format, side) = 4 bytes
+# Total: 52 bytes per entry
+CMGF_ENTRY_SIZE = 52
+CMGF_NUM_PTRS   = 6   # six StringPointers at the front of each entry
+
+# Offsets struct layout (extern struct, 64-bit):
+#   byte_count               u64   8
+#   modules_ptr.offset       u32   4
+#   modules_ptr.length       u32   4
+#   entry_point_id           u32   4
+#   compile_exec_argv_ptr.offset u32 4
+#   compile_exec_argv_ptr.length u32 4
+#   flags                    u32   4
+# Total: 32 bytes
+OFFSETS_SIZE   = 32
+TRAILER        = b'\n---- Bun! ----\n'  # 16 bytes
+
 
 def log(msg):
     print(f"[+] {msg}")
@@ -192,6 +211,94 @@ def detect_format(data):
     return None
 
 
+def fix_module_graph_offsets(payload, patch_offset, delta):
+    """Fix the StandaloneModuleGraph Offsets struct and per-module StringPointer
+    offsets after the payload bytes have been expanded by `delta` bytes at
+    `patch_offset`.
+
+    Bun serialises the module graph as:
+      [... raw bytes ...]
+      [CompiledModuleGraphFile[]] (modules list, at modules_ptr.offset)
+      [Offsets extern struct, 32 bytes]
+      ['\\n---- Bun! ----\\n', 16 bytes]
+
+    Python's bytes.replace() shifts all bytes after the insertion point by
+    `delta`.  StringPointer values that index into the raw bytes therefore
+    become stale and must be updated:
+
+      • if ptr.offset >= patch_offset  → ptr.offset += delta
+      • elif ptr.offset < patch_offset < ptr.offset+ptr.length
+                                        → ptr.length += delta  (patch is inside)
+      • else                           → unchanged
+
+    The same logic applies to the Offsets struct's own byte_count /
+    modules_ptr / compile_exec_argv_ptr fields.
+
+    The modules list has already physically moved to
+    (original_modules_off + delta) inside the new payload because it was
+    located after the patch point; we read it from that shifted position.
+    """
+    if delta == 0:
+        return payload
+
+    # Locate the trailer and Offsets struct at the tail of the payload
+    if not payload.endswith(TRAILER):
+        # Not a recognised module graph – return unchanged
+        return payload
+
+    payload = bytearray(payload)
+    plen = len(payload)
+    offsets_start = plen - len(TRAILER) - OFFSETS_SIZE
+    if offsets_start < 0:
+        return bytes(payload)
+
+    (byte_count,
+     modules_off, modules_len,
+     entry_point_id,
+     argv_off, argv_len,
+     flags) = struct.unpack_from('<QIIIIII', payload, offsets_start)
+
+    # The modules list physically moved by delta if it was past the patch point
+    actual_modules_off = modules_off + delta if modules_off >= patch_offset \
+                         else modules_off
+
+    if actual_modules_off + modules_len > plen - len(TRAILER) - OFFSETS_SIZE:
+        # Sanity check failed – leave untouched
+        return bytes(payload)
+
+    # Update every StringPointer in every CompiledModuleGraphFile entry
+    num_entries = modules_len // CMGF_ENTRY_SIZE
+    for entry_idx in range(num_entries):
+        entry_base = actual_modules_off + entry_idx * CMGF_ENTRY_SIZE
+        for ptr_idx in range(CMGF_NUM_PTRS):
+            ptr_base = entry_base + ptr_idx * 8
+            sp_off, sp_len = struct.unpack_from('<II', payload, ptr_base)
+            if sp_off == 0 and sp_len == 0:
+                continue
+            if sp_off >= patch_offset:
+                sp_off += delta
+            elif sp_off < patch_offset < sp_off + sp_len:
+                sp_len += delta
+            struct.pack_into('<II', payload, ptr_base, sp_off, sp_len)
+
+    # Update the Offsets struct fields
+    if byte_count >= patch_offset:
+        byte_count += delta
+    new_modules_off = modules_off + delta if modules_off >= patch_offset \
+                      else modules_off
+    new_argv_off    = argv_off    + delta if argv_off    >= patch_offset \
+                      else argv_off
+
+    struct.pack_into('<QIIIIII', payload, offsets_start,
+                     byte_count,
+                     new_modules_off, modules_len,
+                     entry_point_id,
+                     new_argv_off, argv_len,
+                     flags)
+
+    return bytes(payload)
+
+
 def extract_payload_old(data):
     """Extract payload from old-style bundled binary.
     Returns payload bytes (module graph, excluding the 8-byte total trailer)."""
@@ -238,10 +345,10 @@ def detect_bun_layout(data):
         if (phdr['p_flags'] & PF_W) and rw_idx is None:
             rw_idx = i
             rw_phdr = phdr
-    if rw_idx is None:
+    if rw_phdr is None:
         return None
-    if phdr['p_vaddr'] <= bun_vaddr < phdr['p_vaddr'] + phdr['p_memsz']:
-        return 'grow' if (phdr['p_flags'] & PF_W) else 'late'
+    if rw_phdr['p_vaddr'] <= bun_vaddr < rw_phdr['p_vaddr'] + rw_phdr['p_memsz']:
+        return 'grow' if (rw_phdr['p_flags'] & PF_W) else 'late'
     return None
 
 
@@ -489,7 +596,11 @@ def replace_runtime(input_path, output_path=None, wrapper_path=None, force_forma
     target_str = b'q=SdT(),r=`${q}/${a}/${i}.gz`,s=`${q}/${a}/${c}`'
     replace_str = b'q=SdT(),__gb=q.includes("raw.githubusercontent.com")?q.replace("raw.githubusercontent.com","github.com").replace("/main","/releases/download").replace("/master","/releases/download").replace(/\\/cli$/,""):q,r=`${__gb}/${a}/${i}.gz`,s=`${__gb}/${a}/${c}`'
     if target_str in payload:
+        patch_offset = payload.index(target_str)
+        delta = len(replace_str) - len(target_str)
         payload = payload.replace(target_str, replace_str)
+        if delta != 0:
+            payload = fix_module_graph_offsets(payload, patch_offset, delta)
         log("Patched JS update downloader to support GitHub Releases redirection")
     else:
         log("Warning: Could not find update downloader pattern in JS payload")
