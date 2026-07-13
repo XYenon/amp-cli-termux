@@ -15,26 +15,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install cross-compilation tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        with:
-          ndk-version: r26b
-
-      - name: Compile bun-termux wrapper and shim
-        run: |
-          # Compile bun-termux wrapper (Android Bionic) using NDK cross-compiler
-          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang \
-            --target=aarch64-linux-android24 -O3 -Wl,-z,norelro \
-            -o bun-termux-aarch64 bun-termux.c
-          
-          # Compile bun-shim (glibc) using GNU cross-compiler
-          aarch64-linux-gnu-gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
-
       - name: Fetch latest Amp CLI version
         id: get_version
         run: |
@@ -54,6 +34,29 @@ jobs:
             echo "New version detected. Proceeding to patch and release."
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
+
+      - name: Install cross-compilation tools
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup Android NDK
+        if: steps.check_release.outputs.skip != 'true'
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Compile bun-termux wrapper and shim
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          # Compile bun-termux wrapper (Android Bionic) using NDK cross-compiler
+          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang \
+            --target=aarch64-linux-android24 -O3 -Wl,-z,norelro \
+            -o bun-termux-aarch64 bun-termux.c
+
+          # Compile bun-shim (glibc) using GNU cross-compiler
+          aarch64-linux-gnu-gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
 
       - name: Patch and Release
         if: steps.check_release.outputs.skip != 'true'
