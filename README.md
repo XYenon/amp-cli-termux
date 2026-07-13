@@ -1,6 +1,6 @@
 # Amp CLI Termux Standalone Port
 
-This repository provides a Termux-compatible standalone port of the **Amp CLI** (`amp` from [ampcode.com](https://ampcode.com)), similar to how `antigravity-cli-termux` handles the Google Antigravity CLI.
+This repository provides a Termux-compatible standalone port of the **Amp CLI** (`amp` from [ampcode.com](https://ampcode.com)), similar to how [antigravity-cli-termux](https://github.com/wallentx/antigravity-cli-termux) handles the Google Antigravity CLI.
 
 It runs **natively** in Termux without requiring a full `proot-distro` container, and it is fully compatible with Amp plugins/skills.
 
@@ -11,7 +11,7 @@ It runs **natively** in Termux without requiring a full `proot-distro` container
 To install the patched Amp CLI in Termux, run:
 
 ```bash
-AMP_REPO="XYenon/amp-cli-termux" curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.sh | bash
 ```
 
 ---
