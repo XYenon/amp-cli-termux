@@ -187,13 +187,15 @@ static void patch_bun_compiled(void) {
     size_t map_len = ((size_t)len + ps - 1) & ~(size_t)(ps - 1);
     void *mapped = mmap(NULL, map_len, PROT_READ, MAP_PRIVATE, fd, (off_t)off);
     if (mapped != MAP_FAILED) {
-        /* BUN_COMPILED is a mutable global in buno's data segment,
-         * so the target page is already writable.
-         * buno is currently ET_EXEC (base == 0), but add the load base
-         * anyway so this keeps working if Bun ever switches to PIE. */
         uintptr_t base = 0;
         dl_iterate_phdr(find_exe_base, &base);
-        *(volatile uint64_t *)(base + target) = (uint64_t)mapped;
+        uintptr_t target_addr = base + target;
+        uintptr_t page_start = target_addr & ~(uintptr_t)(ps - 1);
+        
+        // Temporarily make target page writable in case of RELRO protection
+        mprotect((void *)page_start, ps, PROT_READ | PROT_WRITE);
+        *(volatile uint64_t *)target_addr = (uint64_t)mapped;
+        mprotect((void *)page_start, ps, PROT_READ);
     }
     close(fd);
 }
