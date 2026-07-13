@@ -25,7 +25,7 @@ echo "========================================="
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 echo "[*] Checking prerequisites..."
-for cmd in curl uname mktemp chmod mkdir rm sha256sum; do
+for cmd in curl uname mktemp chmod mkdir rm sha256sum unzip; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "[ERR] Required command '$cmd' not found. Please install it first." >&2
     exit 1
@@ -45,6 +45,22 @@ mkdir -p "$BUN_DIR/bin"
 mkdir -p "$BUN_DIR/lib"
 mkdir -p "$BUN_DIR/tmp"
 mkdir -p "$LOCAL_BIN"
+
+# ── Setup official glibc bun as buno ──────────────────────────────────────────
+echo "[*] Setting up official glibc bun..."
+if [ -f "$BUN_DIR/bin/buno" ]; then
+  echo "[+] buno already exists."
+elif [ -f "$BUN_DIR/bin/bun" ] && ! grep -q "bun-termux" "$BUN_DIR/bin/bun" 2>/dev/null; then
+  echo "[*] Renaming existing bun to buno..."
+  mv "$BUN_DIR/bin/bun" "$BUN_DIR/bin/buno"
+else
+  echo "[*] Downloading official glibc bun..."
+  temp_zip=$(mktemp "$BUN_DIR/tmp.XXXXXX.zip")
+  curl -fsSL "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-aarch64.zip" -o "$temp_zip"
+  unzip -p "$temp_zip" "bun-linux-aarch64/bun" > "$BUN_DIR/bin/buno"
+  rm -f "$temp_zip"
+  chmod +x "$BUN_DIR/bin/buno"
+fi
 
 # ── Fetch latest version ──────────────────────────────────────────────────────
 echo "[*] Fetching latest patched version..."
