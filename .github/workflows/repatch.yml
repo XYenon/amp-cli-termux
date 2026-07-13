@@ -10,10 +10,25 @@ permissions:
 
 jobs:
   update-amp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
+      - name: Compile bun-termux wrapper and shim
+        run: |
+          # Compile bun-termux wrapper (Android Bionic)
+          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-aarch64/bin/clang \
+            --target=aarch64-linux-android24 -O3 -Wl,-z,norelro \
+            -o bun-termux-aarch64 bun-termux.c
+          
+          # Compile bun-shim (glibc)
+          gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
 
       - name: Fetch latest Amp CLI version
         id: get_version
@@ -45,9 +60,9 @@ jobs:
           curl -fsSL "https://static.ampcode.com/cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" -o download/amp-linux-arm64.gz
           gunzip download/amp-linux-arm64.gz
           
-          # 2. Patch using replace_runtime.py and the precompiled wrapper
+          # 2. Patch using replace_runtime.py and the compiled wrapper
           mkdir -p "cli/${{ env.LATEST_VERSION }}"
-          python3 replace_runtime.py download/amp-linux-arm64 "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64" --wrapper bin/bun-termux-aarch64
+          python3 replace_runtime.py download/amp-linux-arm64 "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64" --wrapper bun-termux-aarch64
           
           # 3. Calculate SHA256 of the decompressed patched binary
           sha256sum "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64" | cut -d' ' -f1 > "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256"
@@ -59,8 +74,10 @@ jobs:
           gh release create "${{ env.LATEST_VERSION }}" \
             "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" \
             "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
+            "bun-termux-aarch64" \
+            "bun-shim-aarch64.so" \
             --title "Amp CLI ${{ env.LATEST_VERSION }}" \
-            --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux."
+            --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner."
           
           # 6. Update global version file in git
           mkdir -p cli

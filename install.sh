@@ -48,8 +48,8 @@ mkdir -p "$LOCAL_BIN"
 
 # ── Download bun-termux wrapper & shim ────────────────────────────────────────
 echo "[*] Downloading bun-termux wrapper & shim..."
-curl -fsSL "$RAW_BASE/bin/bun-termux-aarch64" -o "$BUN_DIR/bin/bun"
-curl -fsSL "$RAW_BASE/lib/bun-shim-aarch64.so" -o "$BUN_DIR/lib/bun-shim.so"
+curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-termux-aarch64" -o "$BUN_DIR/bin/bun"
+curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-shim-aarch64.so" -o "$BUN_DIR/lib/bun-shim.so"
 chmod +x "$BUN_DIR/bin/bun"
 
 # ── Fetch latest version ──────────────────────────────────────────────────────
