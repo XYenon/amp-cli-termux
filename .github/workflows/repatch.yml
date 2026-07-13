@@ -10,18 +10,30 @@ permissions:
 
 jobs:
   update-amp:
-    runs-on: ubuntu-26.04-arm
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Install cross-compilation tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r26b
+
       - name: Compile bun-termux wrapper and shim
         run: |
-          # Compile bun-termux wrapper statically (avoids Bionic NDK dependency on host)
-          gcc -static -O3 -o bun-termux-aarch64 bun-termux.c
+          # Compile bun-termux wrapper (Android Bionic) using NDK cross-compiler
+          $ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang \
+            --target=aarch64-linux-android24 -O3 -Wl,-z,norelro \
+            -o bun-termux-aarch64 bun-termux.c
           
-          # Compile bun-shim (glibc)
-          gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
+          # Compile bun-shim (glibc) using GNU cross-compiler
+          aarch64-linux-gnu-gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
 
       - name: Fetch latest Amp CLI version
         id: get_version
