@@ -463,6 +463,36 @@ static void userland_exec(const char *ldso, const char **argv, size_t argc,
 }
 
 int main(int argc, char **argv, char **envp) {
+    // Intercept "amp update"
+    {
+        char self_path[PATH_MAX];
+        ssize_t self_len = readlink("/proc/self/exe", self_path, sizeof(self_path) - 1);
+        if (self_len > 0) {
+            self_path[self_len] = '\0';
+            const char *base = strrchr(self_path, '/');
+            if (base) base++;
+            else base = self_path;
+
+            if (strstr(base, "amp") != NULL && argc > 1 && strcmp(argv[1], "update") == 0) {
+                const char *raw_base = getenv_nonempty("AMP_STORAGE_BASE");
+                if (!raw_base) {
+                    raw_base = "https://raw.githubusercontent.com/XYenon/amp-cli-termux/main";
+                }
+                printf("[*] Intercepted update command. Fetching and executing the installation script...\n");
+                char cmd[PATH_MAX * 2 + 100];
+                snprintf(cmd, sizeof(cmd), "curl -fsSL \"%s/install.sh\" | bash", raw_base);
+                int ret = system(cmd);
+                if (ret == 0) {
+                    printf("[+] Update completed successfully.\n");
+                    exit(0);
+                } else {
+                    fprintf(stderr, "[ERR] Update failed with exit code %d.\n", ret);
+                    exit(1);
+                }
+            }
+        }
+    }
+
     
     const char *bun_install = getenv_nonempty("BUN_INSTALL");
     const char *bun_binary = getenv_nonempty("BUN_BINARY_PATH");

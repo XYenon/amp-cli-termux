@@ -592,18 +592,6 @@ def replace_runtime(input_path, output_path=None, wrapper_path=None, force_forma
 
     log(f"Extracted payload: {len(payload):,} bytes")
 
-    # Patch update URLs to support GitHub Releases redirection
-    target_str = b'q=SdT(),r=`${q}/${a}/${i}.gz`,s=`${q}/${a}/${c}`'
-    replace_str = b'q=SdT(),__gb=q.includes("raw.githubusercontent.com")?q.replace("raw.githubusercontent.com","github.com").replace("/main","/releases/download").replace("/master","/releases/download").replace(/\\/cli$/,""):q,r=`${__gb}/${a}/${i}.gz`,s=`${__gb}/${a}/${c}`'
-    if target_str in payload:
-        patch_offset = payload.index(target_str)
-        delta = len(replace_str) - len(target_str)
-        payload = payload.replace(target_str, replace_str)
-        if delta != 0:
-            payload = fix_module_graph_offsets(payload, patch_offset, delta)
-        log("Patched JS update downloader to support GitHub Releases redirection")
-    else:
-        log("Warning: Could not find update downloader pattern in JS payload")
 
     try:
         if out_format == 'old':

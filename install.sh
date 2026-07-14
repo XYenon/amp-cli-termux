@@ -2,6 +2,11 @@
 # Amp CLI - Termux Standalone Installer
 set -euo pipefail
 
+# Extract repo from AMP_STORAGE_BASE if set and matches raw.githubusercontent.com
+if [[ -n "${AMP_STORAGE_BASE:-}" && "$AMP_STORAGE_BASE" =~ raw\.githubusercontent\.com/([^/]+/[^/]+) ]]; then
+  AMP_REPO="${AMP_REPO:-${BASH_REMATCH[1]}}"
+fi
+
 # EDIT THIS: Set this to your GitHub username and repository name
 REPO="${AMP_REPO:-XYenon/amp-cli-termux}"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/main"
@@ -57,9 +62,11 @@ else
   echo "[*] Downloading official glibc bun..."
   temp_zip=$(mktemp "$BUN_DIR/tmp.XXXXXX.zip")
   curl -fsSL "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-aarch64.zip" -o "$temp_zip"
-  unzip -p "$temp_zip" "bun-linux-aarch64/bun" > "$BUN_DIR/bin/buno"
+  temp_buno=$(mktemp "$BUN_DIR/bin/tmp.buno.XXXXXX")
+  unzip -p "$temp_zip" "bun-linux-aarch64/bun" > "$temp_buno"
   rm -f "$temp_zip"
-  chmod +x "$BUN_DIR/bin/buno"
+  chmod +x "$temp_buno"
+  mv "$temp_buno" "$BUN_DIR/bin/buno"
 fi
 
 # ── Fetch latest version ──────────────────────────────────────────────────────
@@ -69,9 +76,15 @@ echo "[+] Latest patched version is: $latest_version"
 
 # ── Download bun-termux wrapper & shim ────────────────────────────────────────
 echo "[*] Downloading bun-termux wrapper & shim..."
-curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-termux-aarch64" -o "$BUN_DIR/bin/bun"
-curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-shim-aarch64.so" -o "$BUN_DIR/lib/bun-shim.so"
-chmod +x "$BUN_DIR/bin/bun"
+temp_bun=$(mktemp "$BUN_DIR/bin/tmp.bun.XXXXXX")
+temp_shim=$(mktemp "$BUN_DIR/lib/tmp.shim.XXXXXX.so")
+
+curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-termux-aarch64" -o "$temp_bun"
+curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-shim-aarch64.so" -o "$temp_shim"
+
+chmod +x "$temp_bun"
+mv "$temp_bun" "$BUN_DIR/bin/bun"
+mv "$temp_shim" "$BUN_DIR/lib/bun-shim.so"
 
 # ── Download Amp binary ───────────────────────────────────────────────────────
 temp_gz=$(mktemp "$BIN_DIR/tmp.XXXXXX.gz")
@@ -102,17 +115,18 @@ chmod +x "$BIN_DIR/amp"
 
 # ── Create the native wrapper script ──────────────────────────────────────────
 echo "[*] Creating native wrapper at $LOCAL_BIN/amp..."
-rm -f "$LOCAL_BIN/amp"
+temp_wrapper=$(mktemp "$LOCAL_BIN/tmp.amp.XXXXXX")
 
 # We export AMP_STORAGE_BASE pointing to our GitHub raw URL so that built-in updates
 # check our repository instead of the official static.ampcode.com!
-cat << EOF > "$LOCAL_BIN/amp"
+cat << EOF > "$temp_wrapper"
 #!/data/data/com.termux/files/usr/bin/bash
 export BUN_INSTALL="\$HOME/.bun"
 export AMP_STORAGE_BASE="$RAW_BASE"
 exec "$BIN_DIR/amp" "\$@"
 EOF
-chmod +x "$LOCAL_BIN/amp"
+chmod +x "$temp_wrapper"
+mv "$temp_wrapper" "$LOCAL_BIN/amp"
 
 # ── Ensure DNS config works in glibc ──────────────────────────────────────────
 echo "[*] Setting up DNS configuration for glibc..."
