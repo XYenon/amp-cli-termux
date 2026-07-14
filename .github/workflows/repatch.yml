@@ -27,7 +27,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "${{ env.LATEST_VERSION }}" >/dev/null 2>&1; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger (workflow_dispatch). Forcing build."
+            echo "skip=false" >> $GITHUB_OUTPUT
+          elif gh release view "${{ env.LATEST_VERSION }}" >/dev/null 2>&1; then
             echo "Version ${{ env.LATEST_VERSION }} is already released."
             echo "skip=true" >> $GITHUB_OUTPUT
           else
@@ -80,14 +83,15 @@ jobs:
           # 4. Compress the patched binary
           gzip -f "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64"
           
-          # 5. Create GitHub Release and upload assets
+          # 5. Create GitHub Release and upload assets (use --clobber to overwrite if exists)
           gh release create "${{ env.LATEST_VERSION }}" \
             "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" \
             "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
             "bun-termux-aarch64" \
             "bun-shim-aarch64.so" \
             --title "Amp CLI ${{ env.LATEST_VERSION }}" \
-            --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner."
+            --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner." \
+            --clobber
           
           # 6. Update global version file in git
           mkdir -p cli
