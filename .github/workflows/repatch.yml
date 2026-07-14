@@ -83,15 +83,25 @@ jobs:
           # 4. Compress the patched binary
           gzip -f "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64"
           
-          # 5. Create GitHub Release and upload assets (use --clobber to overwrite if exists)
-          gh release create "${{ env.LATEST_VERSION }}" \
-            "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" \
-            "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
-            "bun-termux-aarch64" \
-            "bun-shim-aarch64.so" \
-            --title "Amp CLI ${{ env.LATEST_VERSION }}" \
-            --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner." \
-            --clobber
+          # 5. Create GitHub Release or upload assets (use --clobber to overwrite if exists)
+          if gh release view "${{ env.LATEST_VERSION }}" >/dev/null 2>&1; then
+            echo "Release already exists. Uploading assets with --clobber..."
+            gh release upload "${{ env.LATEST_VERSION }}" \
+              "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" \
+              "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
+              "bun-termux-aarch64" \
+              "bun-shim-aarch64.so" \
+              --clobber
+          else
+            echo "Creating new release..."
+            gh release create "${{ env.LATEST_VERSION }}" \
+              "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" \
+              "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
+              "bun-termux-aarch64" \
+              "bun-shim-aarch64.so" \
+              --title "Amp CLI ${{ env.LATEST_VERSION }}" \
+              --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner."
+          fi
           
           # 6. Update global version file in git
           mkdir -p cli
