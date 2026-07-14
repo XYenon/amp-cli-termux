@@ -20,14 +20,14 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
 
 1. **`bun-termux` Wrapper & Shim**: We use a custom C-compiled wrapper (`bun-termux`) and an `LD_PRELOAD` shim (`bun-shim.so`) originally developed by the Termux community (`Happ1ness-dev/bun-termux`). This maps paths, wraps DNS files, handles shebangs (like `/bin/sh`), and intercepts system calls natively.
 2. **Binary Patching**: When a new version of Amp CLI is released, the GitHub Action automatically downloads it, extracts the JS bundle payload, and repackages it using the `bun-termux` wrapper.
-3. **Automated Updates**: By setting the `AMP_STORAGE_BASE` environment variable in the wrapper script, the patched Amp binary redirects all version checks and updates to **this repository**. When Amp auto-updates, it pulls pre-patched binaries directly from your repo!
+3. **Automated Updates**: The compiled wrapper intercepts the `update` subcommand natively, fetching and executing the installation script to atomically update the `amp` binary, the wrapper, and the shim without interrupting shell execution.
 
 ---
 
 ## Auto-Update
 
 - **GitHub Action Schedule**: Every 6 hours, the workflow `.github/workflows/repatch.yml` checks for new official Amp CLI versions. If a new version is found, it will automatically download, patch, and release it on GitHub Releases, and update `cli/cli-version.txt`.
-- **Client Auto-Update**: When you run `amp update` or it auto-updates, it will query your repo's `cli/cli-version.txt` and download the pre-patched binary from your repo's GitHub Releases.
+- **Client Auto-Update**: When you run `amp update`, the wrapper intercepts the command and executes the installation script to update the `amp` binary, wrapper (`bun`), and helper libraries atomically.
 
 ## Credits
 

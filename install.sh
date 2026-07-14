@@ -2,11 +2,6 @@
 # Amp CLI - Termux Standalone Installer
 set -euo pipefail
 
-# Extract repo from AMP_STORAGE_BASE if set and matches raw.githubusercontent.com
-if [[ -n "${AMP_STORAGE_BASE:-}" && "$AMP_STORAGE_BASE" =~ raw\.githubusercontent\.com/([^/]+/[^/]+) ]]; then
-  AMP_REPO="${AMP_REPO:-${BASH_REMATCH[1]}}"
-fi
-
 # EDIT THIS: Set this to your GitHub username and repository name
 REPO="${AMP_REPO:-XYenon/amp-cli-termux}"
 RAW_BASE="https://raw.githubusercontent.com/$REPO/main"
@@ -117,12 +112,9 @@ chmod +x "$BIN_DIR/amp"
 echo "[*] Creating native wrapper at $LOCAL_BIN/amp..."
 temp_wrapper=$(mktemp "$LOCAL_BIN/tmp.amp.XXXXXX")
 
-# We export AMP_STORAGE_BASE pointing to our GitHub raw URL so that built-in updates
-# check our repository instead of the official static.ampcode.com!
 cat << EOF > "$temp_wrapper"
 #!/data/data/com.termux/files/usr/bin/bash
 export BUN_INSTALL="\$HOME/.bun"
-export AMP_STORAGE_BASE="$RAW_BASE"
 exec "$BIN_DIR/amp" "\$@"
 EOF
 chmod +x "$temp_wrapper"

@@ -41,6 +41,10 @@
 #define MAX_ENV_INJECTIONS 8  /* Current: 6, headroom: 2 */
 #define STACK_GUARD 256
 
+#ifndef AMP_REPO
+#define AMP_REPO "XYenon/amp-cli-termux"
+#endif
+
 /* Bun 1.3.12+ requires a .bun section for --compile */
 typedef struct { uint64_t size; } BunCompiledHeader;
 #define BUN_COMPILED_ALIGNMENT (16 * 1024)
@@ -474,13 +478,9 @@ int main(int argc, char **argv, char **envp) {
             else base = self_path;
 
             if (strstr(base, "amp") != NULL && argc > 1 && strcmp(argv[1], "update") == 0) {
-                const char *raw_base = getenv_nonempty("AMP_STORAGE_BASE");
-                if (!raw_base) {
-                    raw_base = "https://raw.githubusercontent.com/XYenon/amp-cli-termux/main";
-                }
                 printf("[*] Intercepted update command. Fetching and executing the installation script...\n");
                 char cmd[PATH_MAX * 2 + 100];
-                snprintf(cmd, sizeof(cmd), "curl -fsSL \"%s/install.sh\" | bash", raw_base);
+                snprintf(cmd, sizeof(cmd), "AMP_REPO=\"%s\" curl -fsSL \"https://raw.githubusercontent.com/%s/main/install.sh\" | bash", AMP_REPO, AMP_REPO);
                 int ret = system(cmd);
                 if (ret == 0) {
                     printf("[+] Update completed successfully.\n");
