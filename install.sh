@@ -112,10 +112,11 @@ chmod +x "$BIN_DIR/amp"
 echo "[*] Creating native wrapper at $LOCAL_BIN/amp..."
 temp_wrapper=$(mktemp "$LOCAL_BIN/tmp.amp.XXXXXX")
 
-cat << EOF > "$temp_wrapper"
+cat << 'EOF' > "$temp_wrapper"
 #!/data/data/com.termux/files/usr/bin/bash
-export BUN_INSTALL="\$HOME/.bun"
-exec "$BIN_DIR/amp" "\$@"
+export BUN_INSTALL="$HOME/.bun"
+export AMP_SKIP_UPDATE_CHECK="1"
+exec "/data/data/com.termux/files/home/.amp/bin/amp" "$@"
 EOF
 chmod +x "$temp_wrapper"
 mv "$temp_wrapper" "$LOCAL_BIN/amp"

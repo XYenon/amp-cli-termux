@@ -465,7 +465,6 @@ static void userland_exec(const char *ldso, const char **argv, size_t argc,
 #endif
     __builtin_unreachable();
 }
-
 int main(int argc, char **argv, char **envp) {
     // Intercept "amp update"
     {
@@ -596,6 +595,13 @@ have_shim:
         self_path[self_len] = '\0';
         snprintf(wrapper_env, sizeof(wrapper_env), "BUN_TERMUX_WRAPPER=%s", self_path);
         ADD_INJECTION(wrapper_env);
+
+        const char *base = strrchr(self_path, '/');
+        if (base) base++;
+        else base = self_path;
+        if (strstr(base, "amp") != NULL) {
+            ADD_INJECTION("AMP_SKIP_UPDATE_CHECK=1");
+        }
     }
     snprintf(target_env, sizeof(target_env), "BUN_TERMUX_TARGET=%s", bun_path);
     ADD_INJECTION(target_env);
