@@ -1,7 +1,9 @@
 /*
  * Bun Wrapper for Termux - with userland exec
- * 
+ *
  * Uses userland exec to load ld.so and run bun with the shim preloaded.
+ *
+ * Auto-updates Amp by intercepting `amp update` command.
  */
 
 #define _GNU_SOURCE

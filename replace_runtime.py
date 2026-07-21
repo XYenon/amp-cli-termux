@@ -1,11 +1,16 @@
-#!/data/data/com.termux/files/usr/bin/env python
+#!/usr/bin/env python3
 """
 Replace the bun runtime in a bundled executable with a custom wrapper binary.
 
 Supports both pre-1.3.12 (old-style append) and post-1.3.12 (ELF .bun section)
-bundled binary formats. Auto-detects input format and matches it by default.
+bundled binary formats. Auto-detects input format and matches output format.
 
-Credit: https://github.com/kaan-escober/bun-termux-loader/blob/master/build.py
+Works with:
+- Old: wrapper ELF + payload appended + 8-byte total size trailer
+- New (grow): inject payload into existing writable PT_LOAD segment (Bun 1.3.14+)
+- New (late): add new PT_LOAD segment after existing segments (Bun 1.3.12 - 1.3.13)
+
+Credit: Based on https://github.com/kaan-escober/bun-termux-loader/blob/master/build.py
 """
 
 import os

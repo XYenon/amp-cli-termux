@@ -2,7 +2,7 @@ name: Auto Patch and Update Amp CLI (Release version)
 
 on:
   schedule:
-    - cron: '0 */6 * * *' # Run every 6 hours
+    - cron: "0 */6 * * *" # Run every 6 hours
   workflow_dispatch: # Allow manual trigger
 
 permissions:
@@ -59,31 +59,53 @@ jobs:
             -DAMP_REPO="\"${{ github.repository }}\"" \
             -o bun-termux-aarch64 bun-termux.c
 
-
           # Compile bun-shim (glibc) using GNU cross-compiler
           aarch64-linux-gnu-gcc -shared -fPIC -O3 -o bun-shim-aarch64.so shim.c -ldl
 
-      - name: Patch and Release
+      - name: Patch and build
         if: steps.check_release.outputs.skip != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 1. Download official amp-linux-arm64
           mkdir -p download
           curl -fsSL "https://static.ampcode.com/cli/${{ env.LATEST_VERSION }}/amp-linux-arm64.gz" -o download/amp-linux-arm64.gz
           gunzip download/amp-linux-arm64.gz
-          
+
           # 2. Patch using replace_runtime.py and the compiled wrapper
           mkdir -p "cli/${{ env.LATEST_VERSION }}"
           python3 replace_runtime.py download/amp-linux-arm64 "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64" --wrapper bun-termux-aarch64
-          
+
           # 3. Calculate SHA256 of the decompressed patched binary
           sha256sum "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64" | cut -d' ' -f1 > "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256"
-          
+
           # 4. Compress the patched binary
           gzip -f "cli/${{ env.LATEST_VERSION }}/amp-linux-arm64"
-          
-          # 5. Create GitHub Release or upload assets (use --clobber to overwrite if exists)
+
+          # 5. Update global version file
+          mkdir -p cli
+          echo "${{ env.LATEST_VERSION }}" > cli/cli-version.txt
+
+      - name: Commit version file
+        if: steps.check_release.outputs.skip != 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add cli/cli-version.txt
+          if git diff --quiet && git diff --staged --quiet; then
+            echo "No changes to version file."
+          else
+            git commit -m "Update version file to ${{ env.LATEST_VERSION }}"
+            git push
+          fi
+          # Record the commit the release tag should point to (the version-file commit)
+          echo "VERSION_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Create release
+        if: steps.check_release.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Create GitHub Release or upload assets (use --clobber to overwrite if exists).
+          # --target pins the tag to the version-file commit instead of the previous commit.
           if gh release view "${{ env.LATEST_VERSION }}" >/dev/null 2>&1; then
             echo "Release already exists. Uploading assets with --clobber..."
             gh release upload "${{ env.LATEST_VERSION }}" \
@@ -99,22 +121,24 @@ jobs:
               "cli/${{ env.LATEST_VERSION }}/linux-arm64-amp.sha256" \
               "bun-termux-aarch64" \
               "bun-shim-aarch64.so" \
-              --title "Amp CLI ${{ env.LATEST_VERSION }}" \
-              --notes "Automated patch release of Amp CLI ${{ env.LATEST_VERSION }} for Termux compiled natively on ARM64 runner."
-          fi
-          
-          # 6. Update global version file in git
-          mkdir -p cli
-          echo "${{ env.LATEST_VERSION }}" > cli/cli-version.txt
-          
-          # Clean up temporary build artifacts (only commit the version txt)
-          rm -rf "cli/${{ env.LATEST_VERSION }}"
-          rm -rf download
+              --target "${{ env.VERSION_COMMIT }}" \
+              --title "Amp CLI ${{ env.LATEST_VERSION }} (Termux)" \
+              --notes 'Automated patched release of Amp CLI ${{ env.LATEST_VERSION }} for native Termux (ARM64/aarch64).
 
-      - name: Commit version file
-        if: steps.check_release.outputs.skip != 'true'
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add cli/cli-version.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update version file to ${{ env.LATEST_VERSION }}" && git push)
+          ## Assets
+
+          - `amp-linux-arm64.gz` - Patched Amp CLI binary (gzipped)
+          - `bun-termux-aarch64` - `bun-termux` wrapper binary for Termux
+          - `bun-shim-aarch64.so` - `LD_PRELOAD` shim for path translation and system call intercept
+          - `linux-arm64-amp.sha256` - SHA256 checksum for the patched binary
+
+          ## Installation
+
+          To install in Termux:
+          ```bash
+          curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.sh | bash
+          ```
+
+          This is an automated native patch of the official Amp CLI ${{ env.LATEST_VERSION }} release for Termux.
+          See [XYenon/amp-cli-termux](https://github.com/XYenon/amp-cli-termux) for details.'
+          fi
