@@ -25,7 +25,7 @@ echo "========================================="
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 echo "[*] Checking prerequisites..."
-for cmd in curl uname mktemp chmod mkdir rm sha256sum unzip; do
+for cmd in curl uname mktemp chmod mkdir rm sha256sum unzip tar; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "[ERR] Required command '$cmd' not found. Please install it first." >&2
     exit 1
@@ -69,34 +69,19 @@ echo "[*] Fetching latest patched version..."
 latest_version=$(curl -fsSL "$RAW_BASE/cli/cli-version.txt" | tr -d '\r\n[:space:]')
 echo "[+] Latest patched version is: $latest_version"
 
-# ── Download bun-termux wrapper & shim ────────────────────────────────────────
-echo "[*] Downloading bun-termux wrapper & shim..."
-temp_bun=$(mktemp "$BUN_DIR/bin/tmp.bun.XXXXXX")
-temp_shim=$(mktemp "$BUN_DIR/lib/tmp.shim.XXXXXX.so")
+# ── Download release archive ──────────────────────────────────────────────────
+echo "[*] Downloading patched release archive..."
+temp_tarball=$(mktemp "$AMP_HOME/tmp.XXXXXX.tar.gz")
 
-curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-termux-aarch64" -o "$temp_bun"
-curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/bun-shim-aarch64.so" -o "$temp_shim"
-
-chmod +x "$temp_bun"
-mv "$temp_bun" "$BUN_DIR/bin/bun"
-mv "$temp_shim" "$BUN_DIR/lib/bun-shim.so"
-
-# ── Download Amp binary ───────────────────────────────────────────────────────
-temp_gz=$(mktemp "$BIN_DIR/tmp.XXXXXX.gz")
-temp_bin=$(mktemp "$BIN_DIR/tmp.XXXXXX")
-
-echo "[*] Downloading patched Amp binary..."
-curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/amp-linux-arm64.gz" -o "$temp_gz"
-gzip -dc "$temp_gz" > "$temp_bin"
-rm -f "$temp_gz"
+curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/amp-termux-aarch64.tar.gz" -o "$temp_tarball"
 
 # ── Verify checksum ───────────────────────────────────────────────────────────
 echo "[*] Verifying checksum..."
-expected_checksum=$(curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/linux-arm64-amp.sha256" | tr -d '\r\n[:space:]')
-actual_checksum=$(sha256sum "$temp_bin" | cut -d' ' -f1)
+expected_checksum=$(curl -fsSL "https://github.com/$REPO/releases/download/$latest_version/amp-termux-aarch64.tar.gz.sha256" | tr -d '\r\n[:space:]')
+actual_checksum=$(sha256sum "$temp_tarball" | cut -d' ' -f1)
 
 if [[ "$actual_checksum" != "$expected_checksum" ]]; then
-  rm -f "$temp_bin"
+  rm -f "$temp_tarball"
   echo "[ERR] Checksum verification failed!" >&2
   echo "Expected: $expected_checksum" >&2
   echo "Actual:   $actual_checksum" >&2
@@ -104,9 +89,22 @@ if [[ "$actual_checksum" != "$expected_checksum" ]]; then
 fi
 echo "[+] Checksum verified."
 
-# Atomic move
-mv "$temp_bin" "$BIN_DIR/amp"
-chmod +x "$BIN_DIR/amp"
+# ── Extract files ─────────────────────────────────────────────────────────────
+echo "[*] Extracting files..."
+extract_dir=$(mktemp -d "$AMP_HOME/tmp_extract.XXXXXX")
+tar -xzf "$temp_tarball" -C "$extract_dir"
+rm -f "$temp_tarball"
+
+# Move files to their respective locations
+chmod +x "$extract_dir/bun"
+mv "$extract_dir/bun" "$BUN_DIR/bin/bun"
+mv "$extract_dir/bun-shim.so" "$BUN_DIR/lib/bun-shim.so"
+
+chmod +x "$extract_dir/amp"
+mv "$extract_dir/amp" "$BIN_DIR/amp"
+
+# Clean extract directory
+rm -rf "$extract_dir"
 
 # ── Create the native wrapper script ──────────────────────────────────────────
 echo "[*] Creating native wrapper at $LOCAL_BIN/amp..."
