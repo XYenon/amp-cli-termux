@@ -8,8 +8,9 @@ RAW_BASE="https://raw.githubusercontent.com/$REPO/main"
 
 AMP_HOME="${AMP_HOME:-$HOME/.amp}"
 BIN_DIR="$AMP_HOME/bin"
-BUN_DIR="$HOME/.bun"
-LOCAL_BIN="$HOME/.local/bin"
+AMP_RUNTIME_DIR="$AMP_HOME/runtime"
+LOCAL_BIN="${LOCAL_BIN:-$HOME/.local/bin}"
+LEGACY_BUN_DIR="$HOME/.bun"
 
 if [[ -z "${TERMUX_VERSION:-}" || -z "${PREFIX:-}" ]]; then
   echo "[ERR] This installer is only for native Termux." >&2
@@ -25,7 +26,7 @@ echo "========================================="
 
 # ── Prerequisites ─────────────────────────────────────────────────────────────
 echo "[*] Checking prerequisites..."
-for cmd in curl uname mktemp chmod mkdir rm sha256sum unzip tar; do
+for cmd in curl uname mktemp chmod mkdir rmdir rm mv grep cut tr sha256sum unzip tar; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "[ERR] Required command '$cmd' not found. Please install it first." >&2
     exit 1
@@ -41,28 +42,23 @@ fi
 
 # Create directories
 mkdir -p "$BIN_DIR"
-mkdir -p "$BUN_DIR/bin"
-mkdir -p "$BUN_DIR/lib"
-mkdir -p "$BUN_DIR/tmp"
+mkdir -p "$AMP_RUNTIME_DIR/bin"
+mkdir -p "$AMP_RUNTIME_DIR/lib"
+mkdir -p "$AMP_RUNTIME_DIR/tmp"
 mkdir -p "$LOCAL_BIN"
 
-# ── Setup official glibc bun as buno ──────────────────────────────────────────
-echo "[*] Setting up official glibc bun..."
-if [ -f "$BUN_DIR/bin/buno" ]; then
-  echo "[+] buno already exists."
-elif [ -f "$BUN_DIR/bin/bun" ] && ! grep -q "bun-termux" "$BUN_DIR/bin/bun" 2>/dev/null; then
-  echo "[*] Renaming existing bun to buno..."
-  mv "$BUN_DIR/bin/bun" "$BUN_DIR/bin/buno"
-else
-  echo "[*] Downloading official glibc bun..."
-  temp_zip=$(mktemp "$BUN_DIR/tmp.XXXXXX.zip")
-  curl -fsSL "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-aarch64.zip" -o "$temp_zip"
-  temp_buno=$(mktemp "$BUN_DIR/bin/tmp.buno.XXXXXX")
-  unzip -p "$temp_zip" "bun-linux-aarch64/bun" > "$temp_buno"
-  rm -f "$temp_zip"
-  chmod +x "$temp_buno"
-  mv "$temp_buno" "$BUN_DIR/bin/buno"
-fi
+# ── Setup Amp's private glibc Bun compatibility runtime ───────────────────────
+# Amp still embeds a Linux/glibc keyring native addon, so it cannot yet run on
+# Android Bun directly. Keep the compatibility runtime private to Amp instead
+# of replacing or otherwise modifying the user's Bun installation.
+echo "[*] Installing Amp private glibc Bun..."
+temp_zip=$(mktemp "$AMP_RUNTIME_DIR/tmp.XXXXXX.zip")
+curl -fsSL "https://github.com/oven-sh/bun/releases/latest/download/bun-linux-aarch64.zip" -o "$temp_zip"
+temp_buno=$(mktemp "$AMP_RUNTIME_DIR/bin/tmp.buno.XXXXXX")
+unzip -p "$temp_zip" "bun-linux-aarch64/bun" > "$temp_buno"
+rm -f "$temp_zip"
+chmod +x "$temp_buno"
+mv "$temp_buno" "$AMP_RUNTIME_DIR/bin/buno"
 
 # ── Fetch latest version ──────────────────────────────────────────────────────
 echo "[*] Fetching latest patched version..."
@@ -97,8 +93,8 @@ rm -f "$temp_tarball"
 
 # Move files to their respective locations
 chmod +x "$extract_dir/bun"
-mv "$extract_dir/bun" "$BUN_DIR/bin/bun"
-mv "$extract_dir/bun-shim.so" "$BUN_DIR/lib/bun-shim.so"
+mv "$extract_dir/bun" "$AMP_RUNTIME_DIR/bin/bun"
+mv "$extract_dir/bun-shim.so" "$AMP_RUNTIME_DIR/lib/bun-shim.so"
 
 chmod +x "$extract_dir/amp"
 mv "$extract_dir/amp" "$BIN_DIR/amp"
@@ -110,14 +106,31 @@ rm -rf "$extract_dir"
 echo "[*] Creating native wrapper at $LOCAL_BIN/amp..."
 temp_wrapper=$(mktemp "$LOCAL_BIN/tmp.amp.XXXXXX")
 
-cat << 'EOF' > "$temp_wrapper"
-#!/data/data/com.termux/files/usr/bin/bash
-export BUN_INSTALL="$HOME/.bun"
-export AMP_SKIP_UPDATE_CHECK="1"
-exec "/data/data/com.termux/files/home/.amp/bin/amp" "$@"
-EOF
+{
+  echo "#!$PREFIX/bin/bash"
+  printf 'export BUN_INSTALL=%q\n' "$AMP_RUNTIME_DIR"
+  printf 'export BUN_BINARY_PATH=%q\n' "$AMP_RUNTIME_DIR/bin/buno"
+  echo 'export AMP_SKIP_UPDATE_CHECK="1"'
+  printf 'exec %q "$@"\n' "$BIN_DIR/amp"
+} > "$temp_wrapper"
 chmod +x "$temp_wrapper"
 mv "$temp_wrapper" "$LOCAL_BIN/amp"
+
+# Remove files left by releases that installed Amp's compatibility runtime in
+# ~/.bun. Preserve an official/user-managed Bun unless it is our old wrapper.
+echo "[*] Cleaning legacy Amp runtime files from $LEGACY_BUN_DIR..."
+rm -f "$LEGACY_BUN_DIR/bin/buno"
+rm -f "$LEGACY_BUN_DIR/lib/bun-shim.so"
+rm -f "$LEGACY_BUN_DIR/tmp/install.sh"
+rm -rf "$LEGACY_BUN_DIR/tmp/fake-root"
+
+if [[ -f "$LEGACY_BUN_DIR/bin/bun" ]] && grep -aq 'bun-termux:' "$LEGACY_BUN_DIR/bin/bun"; then
+  echo "[*] Removing legacy bun-termux wrapper from $LEGACY_BUN_DIR/bin/bun..."
+  rm -f "$LEGACY_BUN_DIR/bin/bun"
+fi
+
+# Remove directories only when the user has nothing else stored in them.
+rmdir "$LEGACY_BUN_DIR/lib" "$LEGACY_BUN_DIR/tmp" "$LEGACY_BUN_DIR/bin" "$LEGACY_BUN_DIR" 2>/dev/null || true
 
 # ── Ensure DNS config works in glibc ──────────────────────────────────────────
 echo "[*] Setting up DNS configuration for glibc..."
@@ -132,6 +145,7 @@ done
 
 echo "========================================="
 echo "[+] Success! Amp CLI has been installed natively."
+echo "[+] Amp compatibility runtime is private at: $AMP_RUNTIME_DIR"
 echo "Please restart your terminal or run: source ~/.bashrc"
 echo "To run it, use: amp"
 echo "========================================="

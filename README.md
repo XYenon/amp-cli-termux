@@ -28,7 +28,7 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
 
 ## How it works
 
-1. **`bun-termux` Wrapper + `bun-shim`**: C-compiled wrapper + `LD_PRELOAD` shim handles:
+1. **Amp-private compatibility runtime**: Amp currently embeds a Linux/glibc keyring native addon, so a private `bun-termux` wrapper + `LD_PRELOAD` shim handles:
    - Path translation from `/bin` → Termux `$PREFIX/bin`
    - DNS configuration (`resolv.conf`) for glibc
    - Shebang fixing for scripts (`#!/bin/sh` → Termux paths)
@@ -48,10 +48,10 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
 | Component | Location | Purpose |
 | --------- | -------- | ------- |
 | `amp` | `~/.amp/bin/amp` | Patched Amp CLI binary |
-| `bun-termux` | `~/.bun/bin/bun` | Wrapper that executes glibc Bun |
-| `bun-shim.so` | `~/.bun/lib/bun-shim.so` | `LD_PRELOAD` shim for path translation/interception |
-| `buno` | `~/.bun/bin/buno` | Official unmodified glibc Bun |
-| wrapper | `~/.local/bin/amp` | Shell wrapper to set environment variables |
+| `bun-termux` | `~/.amp/runtime/bin/bun` | Amp-private wrapper that executes glibc Bun |
+| `buno` | `~/.amp/runtime/bin/buno` | Amp-private unmodified glibc Bun |
+| `bun-shim.so` | `~/.amp/runtime/lib/bun-shim.so` | Amp-private `LD_PRELOAD` compatibility shim |
+| wrapper | `~/.local/bin/amp` | Shell wrapper selecting Amp's private runtime |
 
 ---
 
@@ -64,6 +64,7 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
 
 ## Troubleshooting
 
+- **Why does Amp still use glibc?** Bun supports Android natively, but the current Amp Linux artifact embeds a glibc keyring addon. The compatibility runtime will be removed once Amp ships an Android/Bionic build. The installer does not install or modify the user's Bun.
 - **`command not found`**: Add `~/.local/bin` to your `PATH` (see note above)
 - **DNS resolution fails**: The installer configures public DNS by default. Check `$PREFIX/etc/resolv.conf` and `$PREFIX/glibc/etc/resolv.conf` if you have custom network settings
 

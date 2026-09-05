@@ -29,9 +29,13 @@ Automated patched release of Amp CLI $LATEST_VERSION for native Termux (ARM64/aa
 
 - \`amp-termux-aarch64.tar.gz\` - A complete archive containing:
   - \`amp\` - Patched Amp CLI binary
-  - \`bun\` - \`bun-termux\` wrapper binary
-  - \`bun-shim.so\` - \`LD_PRELOAD\` shim for path translation and system call intercept
+  - \`bun\` - Amp-private \`bun-termux\` compatibility wrapper
+  - \`bun-shim.so\` - Amp-private \`LD_PRELOAD\` compatibility shim
 - \`amp-termux-aarch64.tar.gz.sha256\` - SHA256 checksum of the tar.gz archive
+
+Amp's glibc compatibility components are isolated under \`~/.amp/runtime\`
+until Amp ships an Android/Bionic build of its bundled native addons. The
+installer does not install or modify the user's Bun.
 
 ## Installation
 

@@ -480,10 +480,11 @@ int main(int argc, char **argv, char **envp) {
 
             if (strstr(base, "amp") != NULL && argc > 1 && strcmp(argv[1], "update") == 0) {
                 printf("[*] Intercepted update command. Fetching and executing the installation script...\n");
-                char cmd[PATH_MAX * 2 + 250];
+                char cmd[PATH_MAX * 2 + 350];
                 snprintf(cmd, sizeof(cmd),
-                         "AMP_REPO=\"%s\" curl -fsSL \"https://raw.githubusercontent.com/%s/main/install.sh\" -o ~/.bun/tmp/install.sh && "
-                         "(AMP_REPO=\"%s\" bash ~/.bun/tmp/install.sh; ret=$?; rm -f ~/.bun/tmp/install.sh; exit $ret)",
+                         "tmp=$(mktemp \"${TMPDIR:-/tmp}/amp-install.XXXXXX\") && "
+                         "AMP_REPO=\"%s\" curl -fsSL \"https://raw.githubusercontent.com/%s/main/install.sh\" -o \"$tmp\" && "
+                         "(AMP_REPO=\"%s\" bash \"$tmp\"; ret=$?; rm -f \"$tmp\"; exit $ret)",
                          AMP_REPO, AMP_REPO, AMP_REPO);
                 int ret = system(cmd);
                 if (ret == 0) {
