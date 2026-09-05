@@ -11,14 +11,18 @@ if [ -z "$VERSION_COMMIT" ]; then
   exit 1
 fi
 
+RELEASE_ASSETS=(
+  "cli/${LATEST_VERSION}/amp"
+  "cli/${LATEST_VERSION}/bun"
+  "cli/${LATEST_VERSION}/bun-shim.so"
+  "cli/${LATEST_VERSION}/sha256sums.txt"
+)
+
 # Create GitHub Release or upload assets (use --clobber to overwrite if exists).
 # --target pins the tag to the version-file commit instead of the previous commit.
 if gh release view "$LATEST_VERSION" >/dev/null 2>&1; then
   echo "Release already exists. Uploading assets with --clobber..."
-  gh release upload "$LATEST_VERSION" \
-    "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz" \
-    "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz.sha256" \
-    --clobber
+  gh release upload "$LATEST_VERSION" "${RELEASE_ASSETS[@]}" --clobber
 else
   echo "Creating new release..."
 
@@ -27,11 +31,10 @@ Automated patched release of Amp CLI $LATEST_VERSION for native Termux (ARM64/aa
 
 ## Assets
 
-- \`amp-termux-aarch64.tar.gz\` - A complete archive containing:
-  - \`amp\` - Patched Amp CLI binary
-  - \`bun\` - Amp-private \`bun-termux\` compatibility wrapper
-  - \`bun-shim.so\` - Amp-private \`LD_PRELOAD\` compatibility shim
-- \`amp-termux-aarch64.tar.gz.sha256\` - SHA256 checksum of the tar.gz archive
+- \`amp\` - Patched Amp CLI binary
+- \`bun\` - Amp-private \`bun-termux\` compatibility wrapper
+- \`bun-shim.so\` - Amp-private \`LD_PRELOAD\` compatibility shim
+- \`sha256sums.txt\` - SHA256 checksums of all release files
 
 Amp's glibc compatibility components are isolated under \`~/.amp/runtime\`
 until Amp ships an Android/Bionic build of its bundled native addons. The
@@ -49,8 +52,7 @@ See [XYenon/amp-cli-termux](https://github.com/XYenon/amp-cli-termux) for detail
 EOF
 
   gh release create "$LATEST_VERSION" \
-    "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz" \
-    "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz.sha256" \
+    "${RELEASE_ASSETS[@]}" \
     --target "$VERSION_COMMIT" \
     --title "Amp CLI $LATEST_VERSION (Termux)" \
     --notes-file release_notes.md

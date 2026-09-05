@@ -38,8 +38,12 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
    - Downloads official `amp-linux-arm64` from ampcode.com
    - Extracts the embedded Bun JS payload
    - Repackages with the `bun-termux` wrapper (supports both old and new Bun executable formats)
+   - Publishes separate binary assets (`amp`, `bun`, `bun-shim.so`) alongside a unified `sha256sums.txt`
 
-3. **Auto-Update**: The wrapper intercepts the `amp update` command and runs the installer script atomically to update all components.
+3. **Auto-Update & Selective Downloads**: The wrapper intercepts the `amp update` command and runs the installer script:
+   - Checks SHA256 hashes of individual components against the remote `sha256sums.txt` before downloading
+   - Skips downloads for components that are already up to date
+   - Updates only the components that have changed (typically only `amp`)
 
 ---
 
@@ -57,8 +61,8 @@ curl -fsSL https://raw.githubusercontent.com/XYenon/amp-cli-termux/main/install.
 
 ## Auto-Update
 
-- **Server-side**: GitHub Action checks for new official Amp releases every 6 hours, patches and publishes automatically
-- **Client-side**: Run `amp update` to pull and install the latest version atomically
+- **Server-side**: GitHub Action checks for new official Amp releases every 6 hours, patches, and publishes individual binaries with checksums
+- **Client-side**: Run `amp update` to compare checksums and selectively download only updated components
 
 ---
 

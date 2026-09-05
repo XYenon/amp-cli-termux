@@ -13,21 +13,17 @@ gunzip download/amp-linux-arm64.gz
 
 # 2. Patch using replace_runtime.py and the compiled wrapper
 mkdir -p "cli/${LATEST_VERSION}"
-python3 replace_runtime.py download/amp-linux-arm64 "cli/${LATEST_VERSION}/amp-linux-arm64" --wrapper bun
+python3 replace_runtime.py download/amp-linux-arm64 "cli/${LATEST_VERSION}/amp" --wrapper bun
 
-# 3. Package the files into a tarball
-mkdir -p pack
-cp "cli/${LATEST_VERSION}/amp-linux-arm64" pack/amp
-cp bun pack/
-cp bun-shim.so pack/
+# 3. Copy separate runtime files into the release directory
+cp bun "cli/${LATEST_VERSION}/bun"
+cp bun-shim.so "cli/${LATEST_VERSION}/bun-shim.so"
 
-tar -czf "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz" -C pack amp bun bun-shim.so
+# 4. Calculate SHA256 checksums
+(cd "cli/${LATEST_VERSION}" && sha256sum amp bun bun-shim.so > sha256sums.txt)
 
-# 4. Calculate SHA256 of the tgz archive
-sha256sum "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz" | cut -d' ' -f1 > "cli/${LATEST_VERSION}/amp-termux-aarch64.tar.gz.sha256"
-
-# 5. Clean up temporary files and pack directory
-rm -rf pack download "cli/${LATEST_VERSION}/amp-linux-arm64"
+# 5. Clean up temporary files
+rm -rf download
 
 # 6. Update global version file
 mkdir -p cli
