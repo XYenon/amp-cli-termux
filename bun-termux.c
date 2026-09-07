@@ -479,7 +479,6 @@ int main(int argc, char **argv, char **envp) {
             else base = self_path;
 
             if (strstr(base, "amp") != NULL && argc > 1 && strcmp(argv[1], "update") == 0) {
-                printf("[*] Intercepted update command. Fetching and executing the installation script...\n");
                 char cmd[PATH_MAX * 2 + 350];
                 snprintf(cmd, sizeof(cmd),
                          "tmp=$(mktemp \"${TMPDIR:-/tmp}/amp-install.XXXXXX\") && "
@@ -487,13 +486,11 @@ int main(int argc, char **argv, char **envp) {
                          "(AMP_REPO=\"%s\" bash \"$tmp\"; ret=$?; rm -f \"$tmp\"; exit $ret)",
                          AMP_REPO, AMP_REPO, AMP_REPO);
                 int ret = system(cmd);
-                if (ret == 0) {
-                    printf("[+] Update completed successfully.\n");
-                    exit(0);
-                } else {
-                    fprintf(stderr, "[ERR] Update failed with exit code %d.\n", ret);
+                if (ret != 0) {
+                    fprintf(stderr, "✗ Update failed with exit code %d.\n", ret);
                     exit(1);
                 }
+                exit(0);
             }
         }
     }
